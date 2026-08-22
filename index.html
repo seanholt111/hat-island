@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#061018">
+<title>Hat Island, WA</title>
+<style>
+  :root {
+    --bg: #061018;
+    --panel: rgba(8, 18, 28, 0.82);
+    --text: #e8f4ff;
+    --muted: #8fb0c8;
+    --accent: #5ec8ff;
+    --safe-t: env(safe-area-inset-top, 0px);
+    --safe-b: env(safe-area-inset-bottom, 0px);
+    --safe-l: env(safe-area-inset-left, 0px);
+    --safe-r: env(safe-area-inset-right, 0px);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    width: 100%; height: 100%;
+    overflow: hidden;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    touch-action: none;
+    overscroll-behavior: none;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  body {
+    position: fixed; inset: 0;
+    padding-top: var(--safe-t);
+    padding-bottom: var(--safe-b);
+    padding-left: var(--safe-l);
+    padding-right: var(--safe-r);
+  }
+  #stage {
+    position: absolute; inset: 0;
+    overflow: hidden;
+    background:
+      radial-gradient(ellipse at 50% 20%, #123048 0%, transparent 55%),
+      var(--bg);
+    cursor: grab;
+    touch-action: none;
+  }
+  #stage.dragging { cursor: grabbing; }
+  #world {
+    position: absolute;
+    left: 0; top: 0;
+    transform-origin: 0 0;
+    will-change: transform;
+  }
+  #world img {
+    display: block;
+    width: auto;
+    height: auto;
+    max-width: none;
+    pointer-events: none;
+    -webkit-user-drag: none;
+    box-shadow: 0 20px 80px rgba(0,0,0,0.45);
+  }
+  #hud {
+    position: absolute;
+    left: 12px; right: 12px;
+    top: calc(10px + var(--safe-t));
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+    pointer-events: none;
+    z-index: 5;
+  }
+  .card {
+    pointer-events: auto;
+    background: var(--panel);
+    border: 1px solid rgba(94, 200, 255, 0.25);
+    border-radius: 14px;
+    padding: 10px 12px;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    box-shadow: 0 8px 28px rgba(0,0,0,0.35);
+  }
+  .title { font-weight: 800; font-size: 0.95rem; letter-spacing: 0.01em; }
+  .sub { color: var(--muted); font-size: 0.75rem; margin-top: 2px; }
+  #controls {
+    position: absolute;
+    right: 12px;
+    bottom: calc(14px + var(--safe-b));
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    z-index: 5;
+  }
+  .btn {
+    width: 48px; height: 48px;
+    border-radius: 14px;
+    border: 1px solid rgba(94, 200, 255, 0.3);
+    background: var(--panel);
+    color: var(--text);
+    font-size: 1.35rem;
+    font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+  }
+  .btn:active { transform: scale(0.96); background: rgba(20, 40, 58, 0.95); }
+  #hint {
+    position: absolute;
+    left: 50%;
+    bottom: calc(18px + var(--safe-b));
+    transform: translateX(-50%);
+    background: var(--panel);
+    border: 1px solid rgba(94, 200, 255, 0.2);
+    border-radius: 999px;
+    padding: 8px 14px;
+    font-size: 0.78rem;
+    color: var(--muted);
+    z-index: 4;
+    pointer-events: none;
+    opacity: 1;
+    transition: opacity 0.6s ease;
+    white-space: nowrap;
+  }
+  #hint.hide { opacity: 0; }
+  #zoomLabel {
+    text-align: center;
+    font-size: 0.7rem;
+    color: var(--accent);
+    margin-top: -2px;
+  }
+  #loader {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--bg);
+    z-index: 10;
+    transition: opacity 0.35s ease;
+  }
+  #loader.hide { opacity: 0; pointer-events: none; }
+  .spin {
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    border: 3px solid rgba(94,200,255,0.2);
+    border-top-color: var(--accent);
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+  <div id="stage">
+    <div id="world">
+      <img id="map" src="hat-island.png" alt="3D rendering of Hat Island, Washington" draggable="false">
+    </div>
+  </div>
+
+  <div id="hud">
+    <div class="card">
+      <div class="title">Hat Island, WA</div>
+      <div class="sub">Possession Sound · pinch &amp; drag to explore</div>
+      <div id="zoomLabel">100%</div>
+    </div>
+  </div>
+
+  <div id="controls">
+    <button class="btn" id="zoomIn" type="button" aria-label="Zoom in">+</button>
+    <button class="btn" id="zoomOut" type="button" aria-label="Zoom out">−</button>
+    <button class="btn" id="reset" type="button" aria-label="Reset view">⌂</button>
+  </div>
+
+  <div id="hint">Drag to pan · pinch to zoom</div>
+  <div id="loader"><div class="spin" aria-label="Loading"></div></div>
+
+<script>
+(function () {
+  'use strict';
+  var stage = document.getElementById('stage');
+  var world = document.getElementById('world');
+  var img = document.getElementById('map');
+  var zoomLabel = document.getElementById('zoomLabel');
+  var hint = document.getElementById('hint');
+  var loader = document.getElementById('loader');
+
+  var state = {
+    x: 0, y: 0, scale: 1,
+    minScale: 0.2, maxScale: 6,
+    imgW: 0, imgH: 0,
+    dragging: false,
+    pointers: new Map(),
+    lastPinchDist: 0,
+    lastPinchMid: null,
+    fitted: false
+  };
+
+  function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+
+  function apply() {
+    world.style.transform = 'translate(' + state.x + 'px,' + state.y + 'px) scale(' + state.scale + ')';
+    zoomLabel.textContent = Math.round(state.scale * 100) + '%';
+  }
+
+  function stageSize() {
+    return { w: stage.clientWidth, h: stage.clientHeight };
+  }
+
+  function fit() {
+    var s = stageSize();
+    if (!state.imgW || !state.imgH || !s.w || !s.h) return;
+    var cover = Math.max(s.w / state.imgW, s.h / state.imgH);
+    var contain = Math.min(s.w / state.imgW, s.h / state.imgH);
+    // Start slightly zoomed so island fills phone, still pannable
+    state.minScale = contain * 0.85;
+    state.maxScale = Math.max(cover * 4, contain * 8);
+    state.scale = clamp(cover * 1.05, state.minScale, state.maxScale);
+    state.x = (s.w - state.imgW * state.scale) / 2;
+    state.y = (s.h - state.imgH * state.scale) / 2;
+    state.fitted = true;
+    apply();
+  }
+
+  function zoomAt(cx, cy, nextScale) {
+    nextScale = clamp(nextScale, state.minScale, state.maxScale);
+    var relX = (cx - state.x) / state.scale;
+    var relY = (cy - state.y) / state.scale;
+    state.scale = nextScale;
+    state.x = cx - relX * state.scale;
+    state.y = cy - relY * state.scale;
+    apply();
+  }
+
+  function hideHintSoon() {
+    setTimeout(function () { hint.classList.add('hide'); }, 2800);
+  }
+
+  img.addEventListener('load', function () {
+    state.imgW = img.naturalWidth;
+    state.imgH = img.naturalHeight;
+    img.style.width = state.imgW + 'px';
+    img.style.height = state.imgH + 'px';
+    fit();
+    loader.classList.add('hide');
+    hideHintSoon();
+  });
+  if (img.complete && img.naturalWidth) {
+    img.dispatchEvent(new Event('load'));
+  }
+  img.addEventListener('error', function () {
+    loader.innerHTML = '<div class="card">Could not load map image.</div>';
+  });
+
+  window.addEventListener('resize', function () {
+    if (state.fitted) fit();
+  });
+  window.addEventListener('orientationchange', function () {
+    setTimeout(fit, 250);
+  });
+
+  function pointerList() {
+    return Array.from(state.pointers.values());
+  }
+
+  stage.addEventListener('pointerdown', function (e) {
+    if (e.target.closest && e.target.closest('.btn')) return;
+    stage.setPointerCapture(e.pointerId);
+    state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    state.dragging = true;
+    stage.classList.add('dragging');
+    hint.classList.add('hide');
+    if (state.pointers.size === 2) {
+      var pts = pointerList();
+      var dx = pts[0].x - pts[1].x;
+      var dy = pts[0].y - pts[1].y;
+      state.lastPinchDist = Math.hypot(dx, dy) || 1;
+      state.lastPinchMid = {
+        x: (pts[0].x + pts[1].x) / 2,
+        y: (pts[0].y + pts[1].y) / 2
+      };
+    }
+  });
+
+  stage.addEventListener('pointermove', function (e) {
+    if (!state.pointers.has(e.pointerId)) return;
+    var prev = state.pointers.get(e.pointerId);
+    var curr = { x: e.clientX, y: e.clientY };
+    state.pointers.set(e.pointerId, curr);
+
+    if (state.pointers.size === 1 && state.dragging) {
+      state.x += curr.x - prev.x;
+      state.y += curr.y - prev.y;
+      apply();
+    } else if (state.pointers.size >= 2) {
+      var pts = pointerList();
+      var dx = pts[0].x - pts[1].x;
+      var dy = pts[0].y - pts[1].y;
+      var dist = Math.hypot(dx, dy) || 1;
+      var mid = {
+        x: (pts[0].x + pts[1].x) / 2,
+        y: (pts[0].y + pts[1].y) / 2
+      };
+      if (state.lastPinchDist > 0) {
+        var factor = dist / state.lastPinchDist;
+        zoomAt(mid.x, mid.y, state.scale * factor);
+        // also pan with midpoint drift
+        if (state.lastPinchMid) {
+          state.x += mid.x - state.lastPinchMid.x;
+          state.y += mid.y - state.lastPinchMid.y;
+          apply();
+        }
+      }
+      state.lastPinchDist = dist;
+      state.lastPinchMid = mid;
+    }
+  });
+
+  function endPointer(e) {
+    state.pointers.delete(e.pointerId);
+    if (state.pointers.size < 2) {
+      state.lastPinchDist = 0;
+      state.lastPinchMid = null;
+    }
+    if (state.pointers.size === 0) {
+      state.dragging = false;
+      stage.classList.remove('dragging');
+    }
+  }
+  stage.addEventListener('pointerup', endPointer);
+  stage.addEventListener('pointercancel', endPointer);
+  stage.addEventListener('pointerleave', function (e) {
+    if (state.pointers.has(e.pointerId)) endPointer(e);
+  });
+
+  stage.addEventListener('wheel', function (e) {
+    e.preventDefault();
+    var factor = e.deltaY < 0 ? 1.12 : 1 / 1.12;
+    zoomAt(e.clientX, e.clientY, state.scale * factor);
+    hint.classList.add('hide');
+  }, { passive: false });
+
+  document.getElementById('zoomIn').addEventListener('click', function () {
+    var s = stageSize();
+    zoomAt(s.w / 2, s.h / 2, state.scale * 1.25);
+  });
+  document.getElementById('zoomOut').addEventListener('click', function () {
+    var s = stageSize();
+    zoomAt(s.w / 2, s.h / 2, state.scale / 1.25);
+  });
+  document.getElementById('reset').addEventListener('click', fit);
+
+  // Expose for smoke tests
+  window.__hatIsland = {
+    ready: function () { return state.fitted && state.imgW > 0; },
+    getState: function () { return { scale: state.scale, x: state.x, y: state.y, imgW: state.imgW, imgH: state.imgH }; },
+    fit: fit,
+    zoomAt: zoomAt
+  };
+})();
+</script>
+</body>
+</html>
