@@ -494,9 +494,14 @@ function placeHouses(ctx, buildings, lots) {
     label.position.set(h.x + 4.5, h.y + 11.5, h.z + 2.5);
     scene.add(label);
 
-    // Aim default look a bit toward featured lot if present
-    defaultTarget.lerp(new THREE.Vector3(h.x, h.y + 8, h.z), 0.22);
+    // Lock default camera on featured lot (B25) from Sean's Maps pin
+    defaultTarget.set(h.x, h.y + 6, h.z);
+    defaultCamPos.set(h.x + 95, h.y + 70, h.z + 110);
+    camera.position.copy(defaultCamPos);
     controls.target.copy(defaultTarget);
+    controls.minDistance = 40;
+    controls.update();
+    window.__b25 = { x: h.x, y: h.y, z: h.z };
   }
 
   return { houseCount: placements.length, houseXY, featuredCount: featured.length };
@@ -615,9 +620,19 @@ function zoomBy(factor) {
   }
 }
 
+function focusB25() {
+  const p = window.__b25;
+  if (!p) return;
+  defaultTarget.set(p.x, p.y + 6, p.z);
+  defaultCamPos.set(p.x + 95, p.y + 70, p.z + 110);
+  resetView();
+}
+
 document.getElementById("btnReset").addEventListener("click", resetView);
 document.getElementById("btnZoomIn").addEventListener("click", () => zoomBy(0.82));
 document.getElementById("btnZoomOut").addEventListener("click", () => zoomBy(1.22));
+const btnB25 = document.getElementById("btnB25");
+if (btnB25) btnB25.addEventListener("click", focusB25);
 
 setTimeout(() => hintEl.classList.add("fade"), 4500);
 controls.addEventListener("start", () => hintEl.classList.add("fade"));
