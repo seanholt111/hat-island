@@ -1051,8 +1051,6 @@ async function loadTexture() {
   }
 }
 
-}
-
 async function main() {
   try {
     const [elevRes, tex, buildingsRes, lotsRes, b25LocalRes] = await Promise.all([
