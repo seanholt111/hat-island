@@ -12,8 +12,7 @@ const TREE_CLEAR_M = 12;
 const TARGET_TREES = 650;
 const B25_LAT = 48.0125031;
 const B25_LNG = -122.3257859;
-const B25_SAT_HI_PAD = 0.0008;
-const B25_SAT_MID_PAD = 0.0025;
+const B25_SUPPRESS_M = 90; // suppress island-wide auto trees/houses near hand-placed B25
 
 const renderer = new THREE.WebGLRenderer({
   canvas, antialias: true, alpha: false, powerPreference: "high-performance"
@@ -180,91 +179,167 @@ function makeCabinGeometry(featured = false) {
   return mergeGeometries(parts);
 }
 
-/** PNW craftsman / cabin hero house — gabled terracotta roof + side wing, porch, chimney. */
+/** B25 main house from sat: dark forest-green gabled roof, E–W ridge, lower west porch. */
 function makeHeroHouseGeometry() {
   const parts = [];
-  // Main mass (long axis E–W); ridge runs along X
-  const mainW = 9.2, mainD = 6.4, mainH = 3.6;
+  const mainW = 9.6, mainD = 6.6, mainH = 3.55;
   const body = new THREE.BoxGeometry(mainW, mainH, mainD);
   body.translate(0, mainH * 0.5, 0);
-  parts.push({ geo: body, color: 0xe6d2b0 });
+  parts.push({ geo: body, color: 0xe4d2b4 });
 
-  // Gable: triangle in Z/Y, extrude along X (ridge E–W)
+  // Gable roof: triangle in Z/Y, extrude along X (ridge E–W) — forest green
   const roofShape = new THREE.Shape();
-  const rd = mainD * 0.58, rh = 2.55;
+  const rd = mainD * 0.58, rh = 2.45;
   roofShape.moveTo(-rd, 0);
   roofShape.lineTo(rd, 0);
   roofShape.lineTo(0, rh);
   roofShape.lineTo(-rd, 0);
-  const roofGeo2 = new THREE.ExtrudeGeometry(roofShape, { depth: mainW + 0.7, bevelEnabled: false });
-  roofGeo2.rotateY(-Math.PI / 2); // extrusion +Z → +X
-  roofGeo2.translate(-(mainW + 0.7) * 0.5, mainH - 0.05, 0);
-  parts.push({ geo: roofGeo2, color: 0x9a3f2c }); // terracotta / reddish-brown
+  const roofGeo = new THREE.ExtrudeGeometry(roofShape, { depth: mainW + 0.65, bevelEnabled: false });
+  roofGeo.rotateY(Math.PI / 2);
+  roofGeo.translate(-(mainW + 0.65) * 0.5, mainH - 0.05, 0);
+  parts.push({ geo: roofGeo, color: 0x2a4a32 });
 
-  // Side wing (darker green roof) — west annex
-  const wingW = 4.2, wingD = 5.0, wingH = 3.0;
+  // Lower west porch / annex
+  const wingW = 3.6, wingD = 4.4, wingH = 2.55;
   const wing = new THREE.BoxGeometry(wingW, wingH, wingD);
-  wing.translate(-(mainW * 0.5 + wingW * 0.35), wingH * 0.5, -0.4);
-  parts.push({ geo: wing, color: 0xdcc6a4 });
-  const wingRoof = new THREE.ConeGeometry(Math.max(wingW, wingD) * 0.62, 1.9, 4);
-  wingRoof.rotateY(Math.PI / 4);
-  wingRoof.translate(-(mainW * 0.5 + wingW * 0.35), wingH + 0.9, -0.4);
-  parts.push({ geo: wingRoof, color: 0x2f4a38 });
+  wing.translate(-(mainW * 0.5 + wingW * 0.32), wingH * 0.5, 0.15);
+  parts.push({ geo: wing, color: 0xd8c4a4 });
+  const wingRoofShape = new THREE.Shape();
+  const wrd = wingD * 0.55, wrh = 1.55;
+  wingRoofShape.moveTo(-wrd, 0);
+  wingRoofShape.lineTo(wrd, 0);
+  wingRoofShape.lineTo(0, wrh);
+  wingRoofShape.lineTo(-wrd, 0);
+  const wingRoof = new THREE.ExtrudeGeometry(wingRoofShape, { depth: wingW + 0.45, bevelEnabled: false });
+  wingRoof.rotateY(Math.PI / 2);
+  const wingCx = -(mainW * 0.5 + wingW * 0.32);
+  wingRoof.translate(wingCx - (wingW + 0.45) * 0.5, wingH - 0.04, 0.15);
+  parts.push({ geo: wingRoof, color: 0x243e2c });
 
-  // Stone chimney
-  const chim = new THREE.BoxGeometry(0.7, 2.2, 0.7);
-  chim.translate(mainW * 0.28, mainH + 1.6, -mainD * 0.12);
+  // Stone chimney on main ridge
+  const chim = new THREE.BoxGeometry(0.65, 2.1, 0.65);
+  chim.translate(mainW * 0.22, mainH + 1.55, -mainD * 0.1);
   parts.push({ geo: chim, color: 0x6a6560 });
-  const chimCap = new THREE.BoxGeometry(0.85, 0.18, 0.85);
-  chimCap.translate(mainW * 0.28, mainH + 2.75, -mainD * 0.12);
+  const chimCap = new THREE.BoxGeometry(0.8, 0.16, 0.8);
+  chimCap.translate(mainW * 0.22, mainH + 2.65, -mainD * 0.1);
   parts.push({ geo: chimCap, color: 0x4a4844 });
 
-  // Front porch deck + posts + roof overhang
-  const porch = new THREE.BoxGeometry(mainW * 0.72, 0.22, 2.0);
-  porch.translate(0, 0.22, mainD * 0.5 + 0.85);
+  // North porch (faces driveway / road)
+  const porch = new THREE.BoxGeometry(mainW * 0.55, 0.2, 1.85);
+  porch.translate(0.4, 0.22, mainD * 0.5 + 0.75);
   parts.push({ geo: porch, color: 0xa67c52 });
-  const porchRoof = new THREE.BoxGeometry(mainW * 0.76, 0.14, 2.15);
-  porchRoof.translate(0, 2.55, mainD * 0.5 + 0.85);
-  parts.push({ geo: porchRoof, color: 0x7a3428 });
-  for (const ox of [-mainW * 0.28, mainW * 0.28]) {
-    const post = new THREE.CylinderGeometry(0.12, 0.14, 2.3, 6);
-    post.translate(ox, 1.35, mainD * 0.5 + 1.55);
+  const porchRoof = new THREE.BoxGeometry(mainW * 0.58, 0.12, 2.0);
+  porchRoof.translate(0.4, 2.4, mainD * 0.5 + 0.75);
+  parts.push({ geo: porchRoof, color: 0x1f3828 });
+  for (const ox of [-mainW * 0.18, mainW * 0.22]) {
+    const post = new THREE.CylinderGeometry(0.11, 0.13, 2.15, 6);
+    post.translate(ox + 0.4, 1.25, mainD * 0.5 + 1.4);
     parts.push({ geo: post, color: 0x8b6914 });
   }
 
-  // Warm windows (front)
-  for (const ox of [-2.4, -0.8, 0.8, 2.4]) {
-    const win = new THREE.BoxGeometry(1.05, 1.05, 0.1);
+  // Warm windows — north face
+  for (const ox of [-2.6, -0.9, 0.9, 2.6]) {
+    const win = new THREE.BoxGeometry(1.0, 1.0, 0.1);
     win.translate(ox, mainH * 0.55, mainD * 0.5 + 0.04);
     parts.push({ geo: win, color: 0xfff1bc });
   }
-  // Side windows
-  for (const oz of [-1.4, 1.4]) {
-    const win = new THREE.BoxGeometry(0.1, 0.95, 0.95);
-    win.translate(mainW * 0.5 + 0.04, mainH * 0.55, oz);
+  // South windows
+  for (const ox of [-2.2, 0, 2.2]) {
+    const win = new THREE.BoxGeometry(1.0, 0.95, 0.1);
+    win.translate(ox, mainH * 0.55, -mainD * 0.5 - 0.04);
     parts.push({ geo: win, color: 0xffe9a8 });
   }
 
-  // Door
-  const door = new THREE.BoxGeometry(1.1, 2.1, 0.12);
-  door.translate(0, 1.15, mainD * 0.5 + 0.05);
+  const door = new THREE.BoxGeometry(1.05, 2.05, 0.12);
+  door.translate(0.35, 1.12, mainD * 0.5 + 0.05);
   parts.push({ geo: door, color: 0x5c3a22 });
 
-  // Foundation skirt
-  const found = new THREE.BoxGeometry(mainW + 0.3, 0.45, mainD + 0.3);
-  found.translate(0, 0.15, 0);
+  const found = new THREE.BoxGeometry(mainW + 0.25, 0.42, mainD + 0.25);
+  found.translate(0, 0.14, 0);
   parts.push({ geo: found, color: 0x8a8680 });
 
   return mergeGeometries(parts);
 }
 
+/** Guest / garage immediately east of main — terracotta/red-brown gable. */
+function makeHeroOutbuildingGeometry() {
+  const parts = [];
+  const w = 5.4, d = 4.8, h = 2.85;
+  const body = new THREE.BoxGeometry(w, h, d);
+  body.translate(0, h * 0.5, 0);
+  parts.push({ geo: body, color: 0xdcc6a0 });
+
+  const roofShape = new THREE.Shape();
+  const rd = d * 0.58, rh = 1.85;
+  roofShape.moveTo(-rd, 0);
+  roofShape.lineTo(rd, 0);
+  roofShape.lineTo(0, rh);
+  roofShape.lineTo(-rd, 0);
+  const roof = new THREE.ExtrudeGeometry(roofShape, { depth: w + 0.5, bevelEnabled: false });
+  roof.rotateY(Math.PI / 2);
+  roof.translate(-(w + 0.5) * 0.5, h - 0.04, 0);
+  parts.push({ geo: roof, color: 0x9a3f2c });
+
+  for (const ox of [-1.3, 1.3]) {
+    const win = new THREE.BoxGeometry(1.0, 0.85, 0.1);
+    win.translate(ox, h * 0.52, d * 0.5 + 0.04);
+    parts.push({ geo: win, color: 0xffefb8 });
+  }
+  const door = new THREE.BoxGeometry(1.6, 2.0, 0.1);
+  door.translate(0, 1.05, -d * 0.5 - 0.04);
+  parts.push({ geo: door, color: 0x5a4030 });
+  const found = new THREE.BoxGeometry(w + 0.2, 0.35, d + 0.2);
+  found.translate(0, 0.12, 0);
+  parts.push({ geo: found, color: 0x85817c });
+  return mergeGeometries(parts);
+}
+
+function makeTrailerGeometry() {
+  const parts = [];
+  const body = new THREE.BoxGeometry(2.4, 2.2, 6.2);
+  body.translate(0, 1.35, 0);
+  parts.push({ geo: body, color: 0xf4f4f0 });
+  const roof = new THREE.BoxGeometry(2.55, 0.18, 6.35);
+  roof.translate(0, 2.5, 0);
+  parts.push({ geo: roof, color: 0xe8e8e4 });
+  for (const oz of [-1.8, 0, 1.8]) {
+    const win = new THREE.BoxGeometry(0.08, 0.7, 1.1);
+    win.translate(1.22, 1.55, oz);
+    parts.push({ geo: win, color: 0xa8c8e0 });
+  }
+  for (const oz of [-1.6, 1.6]) {
+    for (const ox of [-0.95, 0.95]) {
+      const wheel = new THREE.CylinderGeometry(0.38, 0.38, 0.28, 10);
+      wheel.rotateZ(Math.PI / 2);
+      wheel.translate(ox, 0.38, oz);
+      parts.push({ geo: wheel, color: 0x222222 });
+    }
+  }
+  return mergeGeometries(parts);
+}
+
+function makeTinyShedGeometry() {
+  const parts = [];
+  const body = new THREE.BoxGeometry(2.2, 1.8, 2.0);
+  body.translate(0, 0.95, 0);
+  parts.push({ geo: body, color: 0x8a7a62 });
+  const roof = new THREE.ConeGeometry(1.7, 1.1, 4);
+  roof.rotateY(Math.PI / 4);
+  roof.translate(0, 2.25, 0);
+  parts.push({ geo: roof, color: 0x3a3a38 });
+  return mergeGeometries(parts);
+}
+
 function makeDrivewayGeometry() {
-  // Long gravel stub (local +Z = north toward road)
-  const pad = new THREE.BoxGeometry(3.4, 0.12, 16);
-  pad.translate(0, 0.06, 10);
-  const apron = new THREE.BoxGeometry(7.5, 0.1, 5.5);
-  apron.translate(0, 0.05, 2.2);
+  // Gravel stub from house north toward Whidbey Island Drive (+Z = north)
+  const pad = new THREE.BoxGeometry(3.2, 0.12, 18);
+  pad.translate(0.4, 0.06, 11);
+  const apron = new THREE.BoxGeometry(8.5, 0.1, 6.5);
+  apron.translate(0.2, 0.05, 2.0);
+  const yard = new THREE.BoxGeometry(22, 0.06, 18);
+  yard.translate(1.5, 0.02, 1.0);
   return mergeGeometries([
+    { geo: yard, color: 0xc9b98a },
     { geo: pad, color: 0xc4b59a },
     { geo: apron, color: 0xb8a888 }
   ]);
@@ -448,7 +523,7 @@ function buildTerrain(data, texture) {
 
   attribEl.textContent =
     "Elevation: OpenTopoData " + dataset + " · Imagery © Esri, Maxar, Earthstar Geographics · Vert. ×" + VERT_EXAG +
-    " · B25 local DEM patch";
+    " · B25 hand-placed on island DEM";
 
   return {
     maxElev, widthM, heightM, dataset, elevs, cols, rows, positions,
@@ -456,188 +531,58 @@ function buildTerrain(data, texture) {
   };
 }
 
-/**
- * High-detail local terrain around B25.
- * Mid mesh: full dense elev grid + b25-sat-mid.jpg
- * Hi mesh: tighter sat-hi pad, denser resampled elev + b25-sat-hi.jpg (hero yard)
- */
-function buildB25LocalPatches(islandCtx, elevPatch, texMid, texHi) {
-  if (!elevPatch || !elevPatch.elevations) return null;
-  const { centerLat, centerLng, mLat, mLng } = islandCtx;
-  const elevArr = Float32Array.from(elevPatch.elevations.map(e => {
-    if (e == null || Number.isNaN(e) || e < 0) return 0;
-    return e;
-  }));
-  const elevData = {
-    cols: elevPatch.cols, rows: elevPatch.rows,
-    south: elevPatch.south, north: elevPatch.north,
-    west: elevPatch.west, east: elevPatch.east,
-    elevations: elevArr
-  };
-
-  function prepTex(tex) {
-    tex.colorSpace = THREE.SRGBColorSpace;
-    tex.anisotropy = Math.min(16, renderer.capabilities.getMaxAnisotropy());
-    tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
-    tex.minFilter = THREE.LinearMipmapLinearFilter;
-    tex.magFilter = THREE.LinearFilter;
-    tex.generateMipmaps = true;
-    tex.needsUpdate = true;
-    return tex;
-  }
-
-  function buildGridMesh(south, north, west, east, cols, rows, sampleFn, tex, texSouth, texNorth, texWest, texEast, yBias) {
-    const positions = new Float32Array(cols * rows * 3);
-    const uvs = new Float32Array(cols * rows * 2);
-    for (let r = 0; r < rows; r++) {
-      const latFrac = rows === 1 ? 0.5 : r / (rows - 1);
-      const lat = north - latFrac * (north - south);
-      for (let c = 0; c < cols; c++) {
-        const lngFrac = cols === 1 ? 0.5 : c / (cols - 1);
-        const lng = west + lngFrac * (east - west);
-        const e = sampleFn(lat, lng);
-        const i = r * cols + c;
-        positions[i * 3] = (lng - centerLng) * mLng;
-        positions[i * 3 + 1] = e * VERT_EXAG + yBias;
-        positions[i * 3 + 2] = (lat - centerLat) * mLat;
-        // UV into texture geographic extent
-        uvs[i * 2] = (lng - texWest) / (texEast - texWest);
-        uvs[i * 2 + 1] = (lat - texSouth) / (texNorth - texSouth);
-      }
-    }
-    const indices = [];
-    for (let r = 0; r < rows - 1; r++) {
-      for (let c = 0; c < cols - 1; c++) {
-        const a = r * cols + c;
-        const b = a + 1;
-        const d = (r + 1) * cols + c;
-        const eIdx = d + 1;
-        indices.push(a, b, d, b, eIdx, d);
-      }
-    }
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-    geo.setAttribute("uv", new THREE.BufferAttribute(uvs, 2));
-    geo.setIndex(indices);
-    geo.computeVertexNormals();
-    const mat = new THREE.MeshStandardMaterial({
-      map: prepTex(tex),
-      roughness: 0.9,
-      metalness: 0.02,
-      side: THREE.DoubleSide,
-      polygonOffset: true,
-      polygonOffsetFactor: -1,
-      polygonOffsetUnits: -1
-    });
-    const mesh = new THREE.Mesh(geo, mat);
-    mesh.renderOrder = 1;
-    scene.add(mesh);
-    return mesh;
-  }
-
-  const samplePatch = (lat, lng) => elevAtLatLng(elevData, lat, lng);
-
-  const midSouth = B25_LAT - B25_SAT_MID_PAD;
-  const midNorth = B25_LAT + B25_SAT_MID_PAD;
-  const midWest = B25_LNG - B25_SAT_MID_PAD;
-  const midEast = B25_LNG + B25_SAT_MID_PAD;
-
-  // Neighborhood mid patch from full elev grid footprint
-  if (texMid) {
-    buildGridMesh(
-      elevData.south, elevData.north, elevData.west, elevData.east,
-      elevData.cols, elevData.rows,
-      samplePatch, texMid,
-      midSouth, midNorth, midWest, midEast,
-      0.18
-    );
-  }
-
-  // Hero hi-res patch: denser grid over sat-hi footprint
-  const hiSouth = B25_LAT - B25_SAT_HI_PAD;
-  const hiNorth = B25_LAT + B25_SAT_HI_PAD;
-  const hiWest = B25_LNG - B25_SAT_HI_PAD;
-  const hiEast = B25_LNG + B25_SAT_HI_PAD;
-  if (texHi) {
-    buildGridMesh(
-      hiSouth, hiNorth, hiWest, hiEast,
-      96, 96,
-      samplePatch, texHi,
-      hiSouth, hiNorth, hiWest, hiEast,
-      0.35
-    );
-  }
-
-  return { elevData };
-}
-
-function placeLocalRoads(islandCtx, elevPatch, local) {
+function placeLocalRoads(islandCtx, local) {
   if (!local || !local.roads || !local.roads.length) return 0;
   const { centerLat, centerLng, mLat, mLng, elevs, cols, rows, data } = islandCtx;
-  const elevSrc = elevPatch || data;
-  const halfW = 2.4;
+  const halfW = 2.35;
   let count = 0;
   const mat = new THREE.MeshStandardMaterial({
-    color: 0xc9b896, roughness: 0.95, metalness: 0.0,
-    polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2
+    color: 0xc9b896, roughness: 0.95, metalness: 0.0
   });
 
   for (const road of local.roads) {
     const coords = road.coords;
     if (!coords || coords.length < 2) continue;
-    // Prefer Whidbey Island Drive + nearby unnamed/residential close to B25
     const name = (road.name || "").toLowerCase();
     const isWhidbey = name.includes("whidbey");
     const isNear = coords.some(([lat, lng]) => {
       const dlat = (lat - B25_LAT) * mLat;
       const dlng = (lng - B25_LNG) * mLng;
-      return Math.hypot(dlat, dlng) < 220;
+      return Math.hypot(dlat, dlng) < 200;
     });
     if (!isWhidbey && !isNear) continue;
+    // Only keep segments near B25 (trim long island roads)
+    const trimmed = [];
+    for (const [lat, lng] of coords) {
+      const dlat = (lat - B25_LAT) * mLat;
+      const dlng = (lng - B25_LNG) * mLng;
+      if (Math.hypot(dlat, dlng) < 160) trimmed.push([lat, lng]);
+    }
+    if (trimmed.length < 2) continue;
 
     const left = [], right = [], idx = [];
-    for (let i = 0; i < coords.length; i++) {
-      const [lat, lng] = coords[i];
-      let elev;
-      if (elevSrc.elevations) {
-        elev = elevAtLatLng(
-          Array.isArray(elevSrc.elevations)
-            ? { ...elevSrc, elevations: Float32Array.from(elevSrc.elevations) }
-            : elevSrc,
-          lat, lng
-        );
-      } else {
-        const g = latLngToGrid(lat, lng, data);
-        elev = sampleElev(elevs, cols, rows, g.c, g.r);
-      }
-      // Prefer denser patch elev when inside its bbox
-      if (elevPatch && lat >= elevPatch.south && lat <= elevPatch.north &&
-          lng >= elevPatch.west && lng <= elevPatch.east) {
-        elev = elevAtLatLng({
-          cols: elevPatch.cols, rows: elevPatch.rows,
-          south: elevPatch.south, north: elevPatch.north,
-          west: elevPatch.west, east: elevPatch.east,
-          elevations: Float32Array.from(elevPatch.elevations)
-        }, lat, lng);
-      }
-      const w = latLngToWorld(lat, lng, Math.max(elev, 0.5), centerLat, centerLng, mLat, mLng);
+    for (let i = 0; i < trimmed.length; i++) {
+      const [lat, lng] = trimmed[i];
+      const g = latLngToGrid(lat, lng, data);
+      const elev = Math.max(sampleElev(elevs, cols, rows, g.c, g.r), 0.5);
+      const w = latLngToWorld(lat, lng, elev, centerLat, centerLng, mLat, mLng);
       let tx = 0, tz = 1;
-      if (i < coords.length - 1) {
-        const [lat2, lng2] = coords[i + 1];
+      if (i < trimmed.length - 1) {
+        const [lat2, lng2] = trimmed[i + 1];
         tx = (lng2 - lng) * mLng;
         tz = (lat2 - lat) * mLat;
       } else if (i > 0) {
-        const [lat0, lng0] = coords[i - 1];
+        const [lat0, lng0] = trimmed[i - 1];
         tx = (lng - lng0) * mLng;
         tz = (lat - lat0) * mLat;
       }
       const len = Math.hypot(tx, tz) || 1;
       const nx = -tz / len, nz = tx / len;
-      const y = w.y + 0.45;
+      const y = w.y + 0.35;
       left.push(w.x + nx * halfW, y, w.z + nz * halfW);
       right.push(w.x - nx * halfW, y, w.z - nz * halfW);
     }
-    const n = coords.length;
+    const n = trimmed.length;
     const pos = new Float32Array(n * 2 * 3);
     for (let i = 0; i < n; i++) {
       pos[i * 3] = left[i * 3];
@@ -655,53 +600,57 @@ function placeLocalRoads(islandCtx, elevPatch, local) {
     geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
     geo.setIndex(idx);
     geo.computeVertexNormals();
-    const mesh = new THREE.Mesh(geo, mat);
-    mesh.renderOrder = 2;
-    scene.add(mesh);
+    scene.add(new THREE.Mesh(geo, mat));
     count++;
   }
   return count;
 }
 
-function placeLocalB25Trees(islandCtx, elevPatch, houseXY, featured) {
-  const { centerLat, centerLng, mLat, mLng } = islandCtx;
-  if (!elevPatch) return 0;
-  const elevData = {
-    cols: elevPatch.cols, rows: elevPatch.rows,
-    south: elevPatch.south, north: elevPatch.north,
-    west: elevPatch.west, east: elevPatch.east,
-    elevations: Float32Array.from(elevPatch.elevations)
-  };
+/**
+ * Hand-placed evergreens around B25 from sat reference.
+ * Local offsets: +X east, +Z north. Yard clear ~14–18 m; open driveway north corridor.
+ */
+const B25_TREE_OFFSETS = [
+  // North tree line (between house and road), leaving driveway gap ~x∈[-2,4]
+  { dx: -14, dz: 20, sc: 3.4 }, { dx: -10, dz: 22, sc: 3.8 }, { dx: -7, dz: 19, sc: 3.1 },
+  { dx: 7, dz: 20, sc: 3.5 }, { dx: 11, dz: 22, sc: 3.9 }, { dx: 15, dz: 19, sc: 3.2 },
+  { dx: -18, dz: 16, sc: 3.6 }, { dx: 18, dz: 17, sc: 3.7 },
+  // Northeast clump (dense)
+  { dx: 14, dz: 10, sc: 4.0 }, { dx: 18, dz: 8, sc: 3.6 }, { dx: 21, dz: 12, sc: 3.3 },
+  { dx: 16, dz: 4, sc: 3.8 },
+  // East / SE of red outbuilding (thick)
+  { dx: 16, dz: -2, sc: 4.1 }, { dx: 19, dz: -6, sc: 3.7 }, { dx: 14, dz: -8, sc: 3.9 },
+  { dx: 21, dz: -10, sc: 3.4 }, { dx: 12, dz: -12, sc: 3.5 },
+  // South wall
+  { dx: 6, dz: -16, sc: 3.8 }, { dx: 1, dz: -18, sc: 4.0 }, { dx: -4, dz: -17, sc: 3.6 },
+  { dx: -9, dz: -15, sc: 3.9 }, { dx: -14, dz: -14, sc: 3.4 }, { dx: 10, dz: -18, sc: 3.3 },
+  // West ring
+  { dx: -16, dz: -6, sc: 3.7 }, { dx: -18, dz: 0, sc: 4.0 }, { dx: -17, dz: 6, sc: 3.5 },
+  { dx: -20, dz: -10, sc: 3.2 }, { dx: -13, dz: 10, sc: 3.6 },
+  // Outer fillers matching sat density
+  { dx: 8, dz: -14, sc: 3.1 }, { dx: -8, dz: -12, sc: 3.0 },
+  { dx: 22, dz: 2, sc: 3.4 }, { dx: -22, dz: 4, sc: 3.3 },
+  { dx: 5, dz: 24, sc: 2.9 }, { dx: -5, dz: 24, sc: 2.8 }
+];
+
+function placeLocalB25Trees(islandCtx, featured) {
+  const { centerLat, centerLng, mLat, mLng, elevs, cols, rows, data } = islandCtx;
+  if (!featured) return 0;
+  const fx = featured.x, fz = featured.z;
   const rand = mulberry32(0xB25EE);
-  const fx = featured?.x ?? 0;
-  const fz = featured?.z ?? 0;
   const placements = [];
 
-  // Dense ring around B25; clear yard (~14 m) and driveway corridor north
-  const N = 140;
-  for (let i = 0; i < N; i++) {
-    const ang = rand() * Math.PI * 2;
-    const rad = 14 + rand() * 55;
-    const x = fx + Math.cos(ang) * rad;
-    const z = fz + Math.sin(ang) * rad;
-    // Driveway corridor: north (+z) strip
-    const localX = x - fx, localZ = z - fz;
-    if (localZ > 2 && localZ < 22 && Math.abs(localX) < 4.5) continue;
-    // Yard clear
-    if (Math.hypot(localX, localZ) < 14) continue;
-    // Avoid other houses
-    let near = false;
-    for (let h = 0; h < houseXY.length; h += 2) {
-      if (Math.hypot(x - houseXY[h], z - houseXY[h + 1]) < 10) { near = true; break; }
-    }
-    if (near) continue;
-
+  for (const t of B25_TREE_OFFSETS) {
+    const x = fx + t.dx;
+    const z = fz + t.dz;
+    // Keep driveway corridor clear (north strip)
+    if (t.dz > 4 && t.dz < 26 && Math.abs(t.dx - 0.4) < 3.2) continue;
     const lng = centerLng + x / mLng;
     const lat = centerLat + z / mLat;
-    if (lat < elevData.south || lat > elevData.north || lng < elevData.west || lng > elevData.east) continue;
-    const elev = elevAtLatLng(elevData, lat, lng);
-    if (elev < 1.5) continue;
-    placements.push({ x, y: elev * VERT_EXAG, z, sc: 2.0 + rand() * 2.8 });
+    const g = latLngToGrid(lat, lng, data);
+    const elev = sampleElev(elevs, cols, rows, g.c, g.r);
+    if (elev < 1.2) continue;
+    placements.push({ x, y: elev * VERT_EXAG, z, sc: t.sc * (0.92 + rand() * 0.14) });
   }
 
   if (!placements.length) return 0;
@@ -723,7 +672,7 @@ function placeLocalB25Trees(islandCtx, elevPatch, houseXY, featured) {
     _m.compose(_p, _q, _s);
     trees.setMatrixAt(i, _m);
     if (trees.instanceColor) {
-      _c.setHSL(0.30 + rand() * 0.06, 0.5 + rand() * 0.2, 0.22 + rand() * 0.1);
+      _c.setHSL(0.30 + rand() * 0.06, 0.5 + rand() * 0.2, 0.20 + rand() * 0.1);
       trees.setColorAt(i, _c);
     }
   }
@@ -737,25 +686,19 @@ const CABIN_PALETTE = [
   0xf0e6d4, 0xd2a679, 0xc45c4a, 0x7a9bb5, 0xe8c9a0, 0xb86b4a, 0xdfe7ef, 0xc9a66b
 ];
 
-function placeHouses(ctx, buildings, lots, elevPatch) {
+function placeHouses(ctx, buildings, lots) {
   const { elevs, cols, rows, centerLat, centerLng, mLat, mLng, data, maxElev } = ctx;
   const rand = mulberry32(0xB25A);
   const houseXY = [];
   const placements = [];
 
   function elevFor(lat, lng) {
-    if (elevPatch && lat >= elevPatch.south && lat <= elevPatch.north &&
-        lng >= elevPatch.west && lng <= elevPatch.east) {
-      return elevAtLatLng({
-        cols: elevPatch.cols, rows: elevPatch.rows,
-        south: elevPatch.south, north: elevPatch.north,
-        west: elevPatch.west, east: elevPatch.east,
-        elevations: Float32Array.from(elevPatch.elevations)
-      }, lat, lng);
-    }
     const { c, r } = latLngToGrid(lat, lng, data);
     return sampleElev(elevs, cols, rows, c, r);
   }
+
+  const b25x = (B25_LNG - centerLng) * mLng;
+  const b25z = (B25_LAT - centerLat) * mLat;
 
   for (const b of buildings) {
     const elev = elevFor(b.lat, b.lng);
@@ -763,6 +706,8 @@ function placeHouses(ctx, buildings, lots, elevPatch) {
     if (c < 0 || r < 0 || c > cols - 1 || r > rows - 1) continue;
     if (elev < 0.8 || elev > maxElev * 0.98) continue;
     const w = latLngToWorld(b.lat, b.lng, elev, centerLat, centerLng, mLat, mLng);
+    // Suppress OSM cottages near hand-placed B25 compound
+    if (Math.hypot(w.x - b25x, w.z - b25z) < B25_SUPPRESS_M) continue;
     placements.push({
       x: w.x, y: w.y + 0.35, z: w.z,
       yaw: rand() * Math.PI * 2,
@@ -777,20 +722,12 @@ function placeHouses(ctx, buildings, lots, elevPatch) {
   let featuredLot = (lots || []).find(l => l.featured) || (lots || []).find(l => l.id === "B25");
   let featuredPos = null;
   if (featuredLot) {
-    let best = Infinity, featuredIdx = -1;
-    for (let i = 0; i < placements.length; i++) {
-      const dlat = (placements[i].lat - featuredLot.lat) * mLat;
-      const dlng = (placements[i].lng - featuredLot.lng) * mLng;
-      const d = Math.hypot(dlat, dlng);
-      if (d < best) { best = d; featuredIdx = i; }
-    }
     const elev = Math.max(elevFor(featuredLot.lat, featuredLot.lng), 2);
     const w = latLngToWorld(featuredLot.lat, featuredLot.lng, elev, centerLat, centerLng, mLat, mLng);
-    // Face roughly north toward Whidbey Island Drive (porch +Z local → world after yaw)
-    // Aerial: road is north of house; driveway runs north. yaw=0 keeps local +Z as world +Z (north).
+    // Porch faces north toward driveway / Whidbey Island Drive (local +Z = world +Z)
     const feat = {
-      x: w.x, y: w.y + 0.5, z: w.z,
-      yaw: 0.08,
+      x: w.x, y: w.y + 0.35, z: w.z,
+      yaw: 0.05,
       color: 0xf2e2c4,
       elev,
       lat: featuredLot.lat, lng: featuredLot.lng,
@@ -798,13 +735,8 @@ function placeHouses(ctx, buildings, lots, elevPatch) {
       featured: true,
       label: featuredLot.label || featuredLot.id
     };
-    // Drop any OSM building within 45 m of pin so we don't double-up the hero lot
-    if (featuredIdx >= 0 && best < 45) {
-      placements.splice(featuredIdx, 1);
-    }
     placements.push(feat);
-    houseXY.length = 0;
-    for (const p of placements) houseXY.push(p.x, p.z);
+    houseXY.push(feat.x, feat.z);
     featuredPos = feat;
   }
 
@@ -863,18 +795,40 @@ function placeHouses(ctx, buildings, lots, elevPatch) {
   }
 
   for (const h of featured) {
+    const cy = Math.cos(h.yaw), sy = Math.sin(h.yaw);
+    function localToWorld(lx, ly, lz) {
+      return {
+        x: h.x + cy * lx + sy * lz,
+        y: h.y + ly,
+        z: h.z - sy * lx + cy * lz
+      };
+    }
+
+    // Main green-roof house at exact pin
     const featGeo = makeHeroHouseGeometry();
     const featMat = new THREE.MeshStandardMaterial({
       vertexColors: true, roughness: 0.68, metalness: 0.04,
-      emissive: 0x2a1c0c, emissiveIntensity: 0.12
+      emissive: 0x1a2818, emissiveIntensity: 0.08
     });
     const featMesh = new THREE.Mesh(featGeo, featMat);
     featMesh.position.set(h.x, h.y, h.z);
     featMesh.rotation.y = h.yaw;
-    featMesh.scale.setScalar(1.05);
+    featMesh.scale.setScalar(1.0);
     scene.add(featMesh);
 
-    // Driveway stub toward road (north)
+    // Terracotta outbuilding immediately east
+    const outPos = localToWorld(8.2, 0, -0.4);
+    const outMesh = new THREE.Mesh(
+      makeHeroOutbuildingGeometry(),
+      new THREE.MeshStandardMaterial({
+        vertexColors: true, roughness: 0.72, metalness: 0.04
+      })
+    );
+    outMesh.position.set(outPos.x, outPos.y, outPos.z);
+    outMesh.rotation.y = h.yaw;
+    scene.add(outMesh);
+
+    // Yard apron + gravel driveway stub north toward road
     const drive = new THREE.Mesh(
       makeDrivewayGeometry(),
       new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0 })
@@ -883,18 +837,33 @@ function placeHouses(ctx, buildings, lots, elevPatch) {
     drive.rotation.y = h.yaw;
     scene.add(drive);
 
-    // Extra emissive windows
+    // White trailer / RV in north clearing + tiny shed
+    const trailPos = localToWorld(-3.5, 0, 13.5);
+    const trailer = new THREE.Mesh(
+      makeTrailerGeometry(),
+      new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0.15 })
+    );
+    trailer.position.set(trailPos.x, trailPos.y, trailPos.z);
+    trailer.rotation.y = h.yaw + 0.12;
+    scene.add(trailer);
+
+    const shedPos = localToWorld(1.8, 0, 12.2);
+    const shed = new THREE.Mesh(
+      makeTinyShedGeometry(),
+      new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85, metalness: 0.02 })
+    );
+    shed.position.set(shedPos.x, shedPos.y, shedPos.z);
+    shed.rotation.y = h.yaw - 0.2;
+    scene.add(shed);
+
+    // Extra emissive front windows
     const wMat = new THREE.MeshStandardMaterial({
-      color: 0xfff2c4, emissive: 0xffc56a, emissiveIntensity: 1.25, roughness: 0.35
+      color: 0xfff2c4, emissive: 0xffc56a, emissiveIntensity: 1.2, roughness: 0.35
     });
-    for (const ox of [-2.4, -0.8, 0.8, 2.4]) {
-      const win = new THREE.Mesh(new THREE.BoxGeometry(1.0, 1.0, 0.08), wMat);
-      const cy = Math.cos(h.yaw), sy = Math.sin(h.yaw);
-      win.position.set(
-        h.x + cy * ox + sy * 3.25,
-        h.y + 2.05,
-        h.z - sy * ox + cy * 3.25
-      );
+    for (const ox of [-2.6, -0.9, 0.9, 2.6]) {
+      const win = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.95, 0.08), wMat);
+      const p = localToWorld(ox, 2.0, 3.35);
+      win.position.set(p.x, p.y, p.z);
       win.rotation.y = h.yaw;
       scene.add(win);
     }
@@ -903,19 +872,21 @@ function placeHouses(ctx, buildings, lots, elevPatch) {
       new THREE.CylinderGeometry(0.18, 0.22, 10, 6),
       new THREE.MeshStandardMaterial({ color: 0xc4a35a, roughness: 0.65 })
     );
-    pole.position.set(h.x + 6.5, h.y + 5.0, h.z + 3.5);
+    const poleP = localToWorld(7.5, 5.0, 4.0);
+    pole.position.set(poleP.x, poleP.y, poleP.z);
     scene.add(pole);
 
     const label = makeLabelSprite(h.label || "B25");
-    label.position.set(h.x + 6.5, h.y + 12.5, h.z + 3.5);
+    label.position.set(poleP.x, h.y + 12.5, poleP.z);
     scene.add(label);
 
-    // Closer default camera on B25
-    defaultTarget.set(h.x, h.y + 5, h.z);
-    defaultCamPos.set(h.x + 52, h.y + 38, h.z + 62);
+    // Closer pleasant orbit on B25
+    defaultTarget.set(h.x, h.y + 4, h.z);
+    defaultCamPos.set(h.x + 38, h.y + 28, h.z + 48);
     camera.position.copy(defaultCamPos);
     controls.target.copy(defaultTarget);
-    controls.minDistance = 22;
+    controls.minDistance = 18;
+    controls.maxDistance = Math.max(controls.maxDistance, 2800);
     controls.update();
     window.__b25 = { x: h.x, y: h.y, z: h.z };
     featuredPos = h;
@@ -928,7 +899,7 @@ function placeTrees(ctx, houseXY) {
   const { elevs, cols, rows, positions, maxElev, centerLat, centerLng, mLat, mLng } = ctx;
   const rand = mulberry32(0x7EE5);
   const candidates = [];
-  // World position of B25 for wider clear so local patch trees own that zone
+  // Leave B25 neighborhood to hand-placed evergreens
   const b25x = (B25_LNG - centerLng) * mLng;
   const b25z = (B25_LAT - centerLat) * mLat;
 
@@ -942,8 +913,7 @@ function placeTrees(ctx, houseXY) {
       const slope = Math.hypot(eR - eL, eD - eU) / 2;
       if (slope > 7.5) continue;
       const x = positions[i * 3], y = positions[i * 3 + 1], z = positions[i * 3 + 2];
-      // Leave B25 neighborhood to local dense trees
-      if (Math.hypot(x - b25x, z - b25z) < 70) continue;
+      if (Math.hypot(x - b25x, z - b25z) < B25_SUPPRESS_M) continue;
       let nearHouse = false;
       for (let h = 0; h < houseXY.length; h += 2) {
         if (Math.hypot(x - houseXY[h], z - houseXY[h + 1]) < TREE_CLEAR_M) {
@@ -1042,8 +1012,9 @@ function zoomBy(factor) {
 function focusB25() {
   const p = window.__b25;
   if (!p) return;
-  defaultTarget.set(p.x, p.y + 5, p.z);
-  defaultCamPos.set(p.x + 52, p.y + 38, p.z + 62);
+  defaultTarget.set(p.x, p.y + 4, p.z);
+  defaultCamPos.set(p.x + 38, p.y + 28, p.z + 48);
+  controls.minDistance = 18;
   resetView();
 }
 
@@ -1080,18 +1051,11 @@ async function loadTexture() {
   }
 }
 
-async function loadOptionalTexture(path) {
-  const loader = new THREE.TextureLoader();
-  try {
-    return await loader.loadAsync(path);
-  } catch (_) {
-    return null;
-  }
 }
 
 async function main() {
   try {
-    const [elevRes, tex, buildingsRes, lotsRes, b25ElevRes, b25LocalRes, texMid, texHi] = await Promise.all([
+    const [elevRes, tex, buildingsRes, lotsRes, b25LocalRes] = await Promise.all([
       fetch("./elevation.json").then(r => {
         if (!r.ok) throw new Error("elevation.json " + r.status);
         return r.json();
@@ -1099,27 +1063,22 @@ async function main() {
       loadTexture(),
       fetch("./buildings.json").then(r => (r.ok ? r.json() : { buildings: [] })).catch(() => ({ buildings: [] })),
       fetch("./lots.json").then(r => (r.ok ? r.json() : { lots: [] })).catch(() => ({ lots: [] })),
-      fetch("./b25-elevation.json").then(r => (r.ok ? r.json() : null)).catch(() => null),
-      fetch("./b25-local.json").then(r => (r.ok ? r.json() : null)).catch(() => null),
-      loadOptionalTexture("./b25-sat-mid.jpg"),
-      loadOptionalTexture("./b25-sat-hi.jpg")
+      fetch("./b25-local.json").then(r => (r.ok ? r.json() : null)).catch(() => null)
     ]);
+    // Single island-wide DEM mesh only (no local b25-elevation heightfield overlay)
     const ctx = buildTerrain(elevRes, tex);
-    if (b25ElevRes && (texMid || texHi)) {
-      buildB25LocalPatches(ctx, b25ElevRes, texMid, texHi);
-    }
     const buildings = buildingsRes.buildings || [];
     const lots = lotsRes.lots || [];
-    const { houseCount, houseXY, featuredCount, featuredPos } = placeHouses(ctx, buildings, lots, b25ElevRes);
+    const { houseCount, houseXY, featuredCount, featuredPos } = placeHouses(ctx, buildings, lots);
     const treeCount = placeTrees(ctx, houseXY);
-    const localTrees = placeLocalB25Trees(ctx, b25ElevRes, houseXY, featuredPos);
-    const roadCount = placeLocalRoads(ctx, b25ElevRes, b25LocalRes);
+    const localTrees = placeLocalB25Trees(ctx, featuredPos);
+    const roadCount = placeLocalRoads(ctx, b25LocalRes);
     placeDock(ctx);
     console.info("Hat Island terrain ready", {
       maxElev: ctx.maxElev, widthM: ctx.widthM, heightM: ctx.heightM, dataset: ctx.dataset,
       houses: houseCount, featured: featuredCount, trees: treeCount,
-      b25LocalTrees: localTrees, b25Roads: roadCount,
-      b25Patch: !!b25ElevRes, b25SatHi: !!texHi, b25SatMid: !!texMid
+      b25HandTrees: localTrees, b25Roads: roadCount,
+      singleDem: true
     });
     loaderEl.classList.add("hidden");
     setTimeout(() => loaderEl.remove(), 500);
