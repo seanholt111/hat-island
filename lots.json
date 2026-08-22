@@ -1,0 +1,16 @@
+{
+  "note": "Best-effort Hat Island lot coordinates for the 3D viewer. B25 is NOT a surveyed pin — Division B lots use Port Gardner Drive addresses (e.g. “99 B Port Gardner Dr”). Lat/lng is interpolated ~lot 25 along the OSM Port Gardner Drive centerline from the south end, then offset slightly inland. Refine when a plat/parcel pin is available.",
+  "source": "OSM Port Gardner Drive + public listing address pattern; not Snohomish County survey",
+  "lots": [
+    {
+      "id": "B25",
+      "label": "B25",
+      "division": "B",
+      "street": "Port Gardner Drive",
+      "lat": 48.01485,
+      "lng": -122.3255,
+      "confidence": "approximate",
+      "featured": true
+    }
+  ]
+}
