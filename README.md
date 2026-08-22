@@ -2,6 +2,8 @@
 
 Phone-friendly **3D orbit** viewer of Hat Island (Gedney Island) in Possession Sound, Washington — built from **real elevation** and **Esri World Imagery**.
 
+Whimsical PNW scenery: instanced evergreens on the DEM plus cottages at OpenStreetMap building footprints, with a featured **B25** cabin/label (best-effort Port Gardner Drive pin in `lots.json`). Terrain drape prefers `terrain-sat-hi.jpg` (Esri World Imagery).
+
 Open the GitHub Pages URL on iPhone Safari/Chrome. Drag with one finger to orbit, pinch to zoom, two-finger drag to pan. Use **+ / − / ⌂** for zoom and reset.
 
 ## Local
@@ -18,6 +20,9 @@ npx serve /workspace/hat-island
 |-------|--------|
 | `elevation.json` | [OpenTopoData](https://www.opentopodata.org/) `ned10m` (USGS NED 10 m), bbox-sampled grid |
 | `terrain-sat.jpg` | [Esri World Imagery](https://www.esri.com/) MapServer export (same bbox) |
+| `buildings.json` | OpenStreetMap building centers (Overpass) |
+| `lots.json` | Best-effort featured lot pins (B25 ≈ Port Gardner Dr Division B) |
+| `terrain-sat-hi.jpg` | Higher-res Esri World Imagery drape |
 | `hat-island.png` | Optional cinematic still (not required by the 3D viewer) |
 
 Bbox ≈ 48.00465–48.02167 N, 122.33509–122.30296 W. Elevations are meters; the mesh uses vertical exaggeration (~3×) so hills read clearly on a phone. Null / ≤0 m samples sit at the water plane (deep PNW blue).
